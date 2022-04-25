@@ -1,21 +1,15 @@
 # Lambda Gateway
 
-[![pypi](https://img.shields.io/pypi/v/lambda-gateway?color=yellow&logo=python&logoColor=eee&style=flat-square)](https://pypi.org/project/lambda-gateway/)
-[![python](https://img.shields.io/pypi/pyversions/lambda-gateway?logo=python&logoColor=eee&style=flat-square)](https://pypi.org/project/lambda-gateway/)
-[![pytest](https://img.shields.io/github/workflow/status/amancevice/python-lambda-gateway/pytest?logo=github&style=flat-square)](https://github.com/amancevice/python-lambda-gateway/actions)
-[![coverage](https://img.shields.io/codeclimate/coverage/amancevice/python-lambda-gateway?logo=code-climate&style=flat-square)](https://codeclimate.com/github/amancevice/python-lambda-gateway/test_coverage)
-[![maintainability](https://img.shields.io/codeclimate/maintainability/amancevice/python-lambda-gateway?logo=code-climate&style=flat-square)](https://codeclimate.com/github/amancevice/python-lambda-gateway/maintainability)
-
 Test AWS Lambda functions invoked as API Gateway proxy integrations locally.
 
-This tool extends the native Python SimpleHTTPRequestHandler to proxy requests to a local Lambda function using the ThreadingHTTPServer.
+This is based on https://github.com/amancevice/python-lambda-gateway but accepts a SAM template.yaml so all lambda/gateway definitions (Python and HttpApi only for now) can be run.
 
-This tool is was specifically implemented to use the standard Python library only. No additional pip installation is required.
+It also runs in async and watches the Python files for changes so you can reload.
 
-After installing, navigate to the directory where your Lambda function is defined and invoke it with the CLI tool using the configured handler, eg:
+After installing, navigate to the directory where your SAM template is defined and invoke it with the CLI tool using the configured handler, eg:
 
 ```bash
-lambda-gateway [-p PORT] [-t SECONDS] lambda_function.lambda_handler
+lambda-gateway [-p PORT] [-t SECONDS] template.yaml
 # => Serving HTTP on :: port 8000 (http://[::]:8000/) ...
 ```
 
@@ -29,10 +23,10 @@ pip install lambda-gateway
 
 ## Usage
 
-Create a Lambda function handler in Python 3
+Create a Lambda function handler in Python 3 (in `testapp` subfolder)
 
 ```python
-# ./lambda_function.py
+# ./testapp/lambda_function.py
 import json
 
 
@@ -50,13 +44,31 @@ def lambda_handler(event, context=None):
     }
 ```
 
+And a template.yaml for AWS SAM - this will not be fully verified:
+```yaml
+Resources:
+  TestApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: testapp/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.8
+      Events:
+        TestApi:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: get
+```
+
 Start a local server with the signature of your Lambda handler as the argument.
 
-_Note — the handler must be importable from the current working directory_
+_Note — the handler must be importable from the CodeUri working directory (testapp)_
 
 ```bash
-lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] lambda_function.lambda_handler
-# => Starting LambdaRequestHandler at http://localhost:8000/
+lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] [-w] template.yaml
+lambda-gateway -p 3000 -w template.yaml
+# => Registering route Endpoint(CodeUri='testapp/', Handler='lambda_function.lambda_handler', Path='/', Method='get')
 ```
 
 Test the function with cURL.
@@ -65,6 +77,18 @@ Test the function with cURL.
 curl http://localhost:8000/?name=Pythonista
 # => {"text": "Hello, Pythonista! ~ Lambda Gateway"}
 ```
+
+## Watch files
+
+The server will watch your Python files for changes and (if `-w` flag is set) will exit. This allows you to reload. For example:
+
+```bash
+while sleep 1; do lambda-gateway -p 3000 --watch ./template.yaml; done
+```
+
+Server reloading would be better if done within lambda-gateway to avoid this outer loop in bash, but forcing a full reload (e.g. import of Python modules) is easier this way.
+
+Provide a path to the Python code base folder using the `-B` argument. This should be to your base Python folder (which will be watched for changes), and then there may still be CodeUri values specifying a further subfolder for the function code.
 
 ## Timeouts
 
@@ -85,3 +109,4 @@ Versions `0.8+` of Lambda Gateway use `2.0` by default, but this can be changed 
 ```bash
 lambda-gateway -V1.0 lambda_function.lambda_handler
 ```
+
