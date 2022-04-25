@@ -3,36 +3,18 @@
 #   python server.py --help
 import argparse
 import os
-import socket
 import sys
-from http import server
+from aiohttp import web
+import nest_asyncio
 
 from lambda_gateway.event_proxy import EventProxy
 from lambda_gateway.request_handler import LambdaRequestHandler
 
 from lambda_gateway import __version__
 
-
-def get_best_family(*address):  # pragma: no cover
-    """
-    Helper for Python 3.7 compat.
-
-    :params tuple address: host/port tuple
-    """
-    # Python 3.8+
-    try:
-        return server._get_best_family(*address)
-
-    # Python 3.7 -- taken from http.server._get_best_family() in 3.8
-    except AttributeError:
-        infos = socket.getaddrinfo(
-            *address,
-            type=socket.SOCK_STREAM,
-            flags=socket.AI_PASSIVE,
-        )
-        family, type, proto, canonname, sockaddr = next(iter(infos))
-        return family, sockaddr
-
+# So lambda functions can make use of asyncio without the problem
+# of being nested within our outer http loop
+nest_asyncio.apply()
 
 def get_opts():
     """
@@ -119,15 +101,18 @@ def main():
     base_path = os.path.join('/', str(opts.base_path or ''), '')
 
     # Setup handler
-    address_family, addr = get_best_family(opts.bind, opts.port)
     proxy = EventProxy(opts.HANDLER, base_path, opts.timeout)
-    LambdaRequestHandler.set_proxy(proxy, opts.payload_version)
-    server.ThreadingHTTPServer.address_family = address_family
+    handler = LambdaRequestHandler(proxy, opts.payload_version)
+
+
+    app = web.Application()
+
+
+    app.add_routes([web.get('/', handler.invoke)])
 
     # Start server
-    with server.ThreadingHTTPServer(addr, LambdaRequestHandler) as httpd:
-        run(httpd, base_path)
+    web.run_app(app, host=opts.bind, port=opts.port)
 
-
+ 
 if __name__ == '__main__':  # pragma: no cover
     main()

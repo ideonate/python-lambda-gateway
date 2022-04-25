@@ -55,10 +55,10 @@ class EventProxy:
         raise ValueError(  # pragma: no cover
             f"Unknown API Gateway payload version: {event.get('version')}")
 
-    def invoke(self, event):
+    async def invoke(self, event):
         with lambda_context.start(self.timeout) as context:
             logger.info('Invoking "%s"', self.handler)
-            return asyncio.run(self.invoke_async_with_timeout(event, context))
+            return await self.invoke_async_with_timeout(event, context)
 
     async def invoke_async(self, event, context=None):
         """
@@ -118,6 +118,6 @@ class EventProxy:
             'statusCode': statusCode,
             'headers': {
                 'Content-Type': 'application/json',
-                'Content-Length': len(body),
+                'Content-Length': str(len(body)),
             },
         }

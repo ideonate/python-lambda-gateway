@@ -1,40 +1,20 @@
 from urllib import parse
-from http.server import SimpleHTTPRequestHandler
+from aiohttp import web
 
-
-class LambdaRequestHandler(SimpleHTTPRequestHandler):
-    def do_DELETE(self):
-        self.invoke('DELETE')
-
-    def do_GET(self):
-        self.invoke('GET')
-
-    def do_HEAD(self):
-        self.invoke('HEAD')
-
-    def do_OPTIONS(self):
-        self.invoke('OPTIONS')
-
-    def do_PATCH(self):
-        self.invoke('PATCH')
-
-    def do_POST(self):
-        self.invoke('POST')
-
-    def do_PUT(self):
-        self.invoke('PUT')
-
-    def get_body(self):
+class LambdaRequestHandler:
+    async def get_body(self, request):
         """
         Get request body to forward to Lambda handler.
         """
+        if not request.can_read_body:
+            return ''
         try:
-            content_length = int(self.headers.get('Content-Length'))
-            return self.rfile.read(content_length).decode()
+            #content_length = request.content_length
+            return await request.text()
         except TypeError:
             return ''
 
-    def get_event(self, httpMethod):
+    async def get_event(self, request):
         """
         Get Lambda input event object.
 
@@ -42,57 +22,57 @@ class LambdaRequestHandler(SimpleHTTPRequestHandler):
         :return dict: Lambda event object
         """
         if self.version == '1.0':
-            return self.get_event_v1(httpMethod)
+            return await self.get_event_v1(request)
         elif self.version == '2.0':
-            return self.get_event_v2(httpMethod)
+            return await self.get_event_v2(request)
         raise ValueError(  # pragma: no cover
             f'Unknown API Gateway payload version: {self.version}')
 
-    def get_event_v1(self, httpMethod):
+    async def get_event_v1(self, request):
         """
         Get Lambda input event object (v1).
 
         :param str httpMethod: HTTP request method
         :return dict: Lambda event object
         """
-        url = parse.urlparse(self.path)
+        url = parse.urlparse(request.path)
         path, *_ = url.path.split('?')
         return {
             'version': '1.0',
-            'body': self.get_body(),
-            'headers': dict(self.headers),
-            'httpMethod': httpMethod,
+            'body': await self.get_body(request),
+            'headers': dict(request.headers),
+            'httpMethod': request.method,
             'path': path,
             'queryStringParameters': dict(parse.parse_qsl(url.query)),
         }
 
-    def get_event_v2(self, httpMethod):
+    async def get_event_v2(self, request):
         """
         Get Lambda input event object (v2).
 
         :param str httpMethod: HTTP request method
         :return dict: Lambda event object
         """
-        url = parse.urlparse(self.path)
+        url = parse.urlparse(request.path)
         path, *_ = url.path.split('?')
-        route_key = self.headers.get('x-route-key') or f'{httpMethod} {path}'
+        route_key = request.headers.get('x-route-key') or f'{request.method} {path}'
         return {
             'version': '2.0',
-            'body': self.get_body(),
+            'body': await self.get_body(request),
             'routeKey': route_key,
             'rawPath': path,
             'rawQueryString': url.query,
-            'headers': dict(self.headers),
+            'headers': dict(request.headers),
             'queryStringParameters': dict(parse.parse_qsl(url.query)),
             'requestContext': {
                 'http': {
-                    'method': httpMethod,
+                    'method': request.method,
                     'path': path,
                 },
             },
         }
 
-    def invoke(self, httpMethod):
+    async def invoke(self, request):
         """
         Proxy requests to Lambda handler
 
@@ -101,10 +81,10 @@ class LambdaRequestHandler(SimpleHTTPRequestHandler):
         :returns dict: Lamnda invocation result
         """
         # Get Lambda event
-        event = self.get_event(httpMethod)
+        event = await self.get_event(request)
 
         # Get Lambda result
-        res = self.proxy.invoke(event)
+        res = await self.proxy.invoke(event)
 
         # Parse response
         status = res.get('statusCode') or 500
@@ -112,16 +92,11 @@ class LambdaRequestHandler(SimpleHTTPRequestHandler):
         body = res.get('body') or ''
 
         # Send response
-        self.send_response(status)
-        for key, val in headers.items():
-            self.send_header(key, val)
-        self.end_headers()
-        self.wfile.write(body.encode())
+        return web.Response(status=status, body=body.encode(), headers=headers)
 
-    @classmethod
-    def set_proxy(cls, proxy, version):
+    def __init__(self, proxy, version):
         """
         Set up LambdaRequestHandler.
         """
-        cls.proxy = proxy
-        cls.version = version
+        self.proxy = proxy
+        self.version = version
