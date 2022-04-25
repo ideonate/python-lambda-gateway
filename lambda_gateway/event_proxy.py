@@ -26,6 +26,7 @@ class EventProxy:
         try:
             sys.path.append(self.base_python_path)
             module = importlib.import_module(name)
+            importlib.reload(module)
             handler = getattr(module, func)
             return handler
         except ModuleNotFoundError:

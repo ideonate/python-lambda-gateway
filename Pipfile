@@ -18,3 +18,4 @@ lambda-gateway = {editable = true,path = "."}
 aiohttp = "*"
 nest_asyncio = "*"
 ruamel.yaml = "*"
+watchfiles = "*"

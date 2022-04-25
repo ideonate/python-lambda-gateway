@@ -7,6 +7,7 @@ import sys
 from aiohttp import web
 import asyncio
 import nest_asyncio
+from watchfiles import awatch
 
 from lambda_gateway.event_proxy import EventProxy
 from lambda_gateway.request_handler import LambdaRequestHandler
@@ -65,13 +66,19 @@ def get_opts():
         help='API Gateway payload version [default: 2.0]',
     )
     parser.add_argument(
+        '-w', '--watch',
+        dest='watch',
+        help='Watch the base python path and exit if files change.',
+        action="store_true"
+    )
+    parser.add_argument(
         'SAM_TEMPLATE',
         help='Path to SAM YAML template',
     )
     return parser.parse_args()
 
 
-async def run_server(app, bind, port):
+async def run_server(app, bind, port, path, quit_on_change=True):
     """
     Run Lambda Gateway server.
     """
@@ -80,8 +87,19 @@ async def run_server(app, bind, port):
     site = web.TCPSite(runner, bind, port)
     await site.start()
 
-    while True:
-        await asyncio.sleep(3600)  # sleep forever
+    stop_event = asyncio.Event()
+
+    # Wait for a source file to change, then quit
+    async for changes in awatch(path, stop_event=stop_event):
+        print(f"Source file changed: {changes}")
+        if quit_on_change:
+            print('Exiting so you can reload')
+            stop_event.set() # `break` would probably be enough BTW
+        else:
+            print("No reload or quit - try -w flag")
+
+    await runner.cleanup()
+    return True
 
 
 def main():
@@ -108,12 +126,9 @@ def main():
 
     app.add_routes(routes)
 
-    # Start server
-    #web.run_app(app, host=opts.bind, port=opts.port)
+    asyncio.run(run_server(app, opts.bind, opts.port, base_python_path, opts.watch))
 
-    asyncio.run(run_server(app, opts.bind, opts.port))
-
-
+    os._exit(0) # OS exit because awatch thread seems to still be locked; without this it hangs
 
  
 if __name__ == '__main__':  # pragma: no cover
