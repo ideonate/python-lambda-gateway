@@ -35,15 +35,13 @@ class LambdaRequestHandler:
         :param str httpMethod: HTTP request method
         :return dict: Lambda event object
         """
-        url = parse.urlparse(request.path)
-        path, *_ = url.path.split('?')
         return {
             'version': '1.0',
             'body': await self.get_body(request),
             'headers': dict(request.headers),
             'httpMethod': request.method,
-            'path': path,
-            'queryStringParameters': dict(parse.parse_qsl(url.query)),
+            'path': request.path,
+            'queryStringParameters': dict(request.query),
         }
 
     async def get_event_v2(self, request):
