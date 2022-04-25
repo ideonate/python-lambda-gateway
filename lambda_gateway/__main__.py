@@ -90,7 +90,7 @@ async def run_server(app, bind, port, path, quit_on_change=True):
     stop_event = asyncio.Event()
 
     # Wait for a source file to change, then quit
-    async for changes in awatch(path, stop_event=stop_event):
+    async for changes in awatch(path, stop_event=stop_event, raise_interrupt=False):
         print(f"Source file changed: {changes}")
         if quit_on_change:
             print('Exiting so you can reload')
