@@ -11,6 +11,7 @@ from lambda_gateway.event_proxy import EventProxy
 from lambda_gateway.request_handler import LambdaRequestHandler
 
 from lambda_gateway import __version__
+from lambda_gateway.sam import SAM
 
 # So lambda functions can make use of asyncio without the problem
 # of being nested within our outer http loop
@@ -25,9 +26,9 @@ def get_opts():
         description='Start a simple Lambda Gateway server',
     )
     parser.add_argument(
-        '-B', '--base-path',
-        dest='base_path',
-        help='Set base path for REST API',
+        '-B', '--base-python-path',
+        dest='base_python_path',
+        help='Set base folder for Python handler spec',
         metavar='PATH',
     )
     parser.add_argument(
@@ -63,24 +64,24 @@ def get_opts():
         help='API Gateway payload version [default: 2.0]',
     )
     parser.add_argument(
-        'HANDLER',
-        help='Lambda handler signature',
+        'SAM_TEMPLATE',
+        help='Path to SAM YAML template',
     )
     return parser.parse_args()
 
 
-def run(httpd, base_path='/'):
+def run(httpd, base_url_path='/'):
     """
     Run Lambda Gateway server.
 
     :param object httpd: ThreadingHTTPServer instance
-    :param str base_path: REST API base path
+    :param str base_url_path: REST API base path
     """
     host, port = httpd.socket.getsockname()[:2]
     url_host = f'[{host}]' if ':' in host else host
     sys.stderr.write(
         f'Serving HTTP on {host} port {port} '
-        f'(http://{url_host}:{port}{base_path}) ...\n'
+        f'(http://{url_host}:{port}{base_url_path}) ...\n'
     )
     try:
         httpd.serve_forever()
@@ -97,18 +98,23 @@ def main():
     # Parse opts
     opts = get_opts()
 
-    # Ensure base_path is wrapped in slashes
-    base_path = os.path.join('/', str(opts.base_path or ''), '')
+    # Ensure base_url_path is wrapped in slashes
+    base_python_path = opts.base_python_path or os.path.curdir
+
+    # Load SAM Template
+    sam = SAM(opts.SAM_TEMPLATE)
 
     # Setup handler
-    proxy = EventProxy(opts.HANDLER, base_path, opts.timeout)
-    handler = LambdaRequestHandler(proxy, opts.payload_version)
-
+    routes = []
+    for endpoint in sam.get_endpoints():
+        proxy = EventProxy(endpoint.Handler,os.path.join(base_python_path, endpoint.CodeUri), opts.timeout)
+        handler = LambdaRequestHandler(proxy, opts.payload_version)
+        print(f"Registering route {endpoint}")
+        routes.append(web.RouteDef(endpoint.Method.upper(), endpoint.Path, handler.invoke, {}))
 
     app = web.Application()
 
-
-    app.add_routes([web.get('/', handler.invoke)])
+    app.add_routes(routes)
 
     # Start server
     web.run_app(app, host=opts.bind, port=opts.port)

@@ -8,8 +8,8 @@ from lambda_gateway import (lambda_context, logger)
 
 
 class EventProxy:
-    def __init__(self, handler, base_path, timeout=None):
-        self.base_path = base_path
+    def __init__(self, handler, base_python_path, timeout=None):
+        self.base_python_path = base_python_path
         self.handler = handler
         self.timeout = timeout
 
@@ -24,7 +24,7 @@ class EventProxy:
         if not name:
             raise ValueError(f"Bad handler signature '{self.handler}'")
         try:
-            sys.path.append(os.path.curdir)
+            sys.path.append(self.base_python_path)
             module = importlib.import_module(name)
             handler = getattr(module, func)
             return handler
@@ -69,13 +69,6 @@ class EventProxy:
         :returns dict: Lamnda invocation result
         """
         httpMethod = self.get_httpMethod(event)
-        path = self.get_path(event)
-
-        # Reject request if not starting at base path
-        if not path.startswith(self.base_path):
-            err = f'Rejected {path} :: Base path is {self.base_path}'
-            logger.error(err)
-            return self.jsonify(httpMethod, 403, message='Forbidden')
 
         # Get & invoke Lambda handler
         try:

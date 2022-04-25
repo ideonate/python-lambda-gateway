@@ -53,21 +53,19 @@ class LambdaRequestHandler:
         :param str httpMethod: HTTP request method
         :return dict: Lambda event object
         """
-        url = parse.urlparse(request.path)
-        path, *_ = url.path.split('?')
-        route_key = request.headers.get('x-route-key') or f'{request.method} {path}'
+        route_key = request.headers.get('x-route-key') or f'{request.method} {request.path}'
         return {
             'version': '2.0',
             'body': await self.get_body(request),
             'routeKey': route_key,
-            'rawPath': path,
-            'rawQueryString': url.query,
+            'rawPath': request.path,
+            'rawQueryString': request.query_string,
             'headers': dict(request.headers),
-            'queryStringParameters': dict(parse.parse_qsl(url.query)),
+            'queryStringParameters': dict(request.query),
             'requestContext': {
                 'http': {
                     'method': request.method,
-                    'path': path,
+                    'path': request.path,
                 },
             },
         }
