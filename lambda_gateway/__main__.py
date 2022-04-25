@@ -5,6 +5,7 @@ import argparse
 import os
 import sys
 from aiohttp import web
+import asyncio
 import nest_asyncio
 
 from lambda_gateway.event_proxy import EventProxy
@@ -70,25 +71,17 @@ def get_opts():
     return parser.parse_args()
 
 
-def run(httpd, base_url_path='/'):
+async def run_server(app, bind, port):
     """
     Run Lambda Gateway server.
-
-    :param object httpd: ThreadingHTTPServer instance
-    :param str base_url_path: REST API base path
     """
-    host, port = httpd.socket.getsockname()[:2]
-    url_host = f'[{host}]' if ':' in host else host
-    sys.stderr.write(
-        f'Serving HTTP on {host} port {port} '
-        f'(http://{url_host}:{port}{base_url_path}) ...\n'
-    )
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        sys.stderr.write('\nKeyboard interrupt received, exiting.\n')
-    finally:
-        httpd.shutdown()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, bind, port)
+    await site.start()
+
+    while True:
+        await asyncio.sleep(3600)  # sleep forever
 
 
 def main():
@@ -98,7 +91,6 @@ def main():
     # Parse opts
     opts = get_opts()
 
-    # Ensure base_url_path is wrapped in slashes
     base_python_path = opts.base_python_path or os.path.curdir
 
     # Load SAM Template
@@ -117,7 +109,11 @@ def main():
     app.add_routes(routes)
 
     # Start server
-    web.run_app(app, host=opts.bind, port=opts.port)
+    #web.run_app(app, host=opts.bind, port=opts.port)
+
+    asyncio.run(run_server(app, opts.bind, opts.port))
+
+
 
  
 if __name__ == '__main__':  # pragma: no cover
