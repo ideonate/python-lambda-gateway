@@ -13,7 +13,7 @@ from lambda_gateway.event_proxy import EventProxy
 from lambda_gateway.request_handler import LambdaRequestHandler
 
 from lambda_gateway import __version__
-from lambda_gateway.sam import SAM
+from lambda_gateway.sam import SAM, load_env_vars
 
 # So lambda functions can make use of asyncio without the problem
 # of being nested within our outer http loop
@@ -72,6 +72,12 @@ def get_opts():
         action="store_true"
     )
     parser.add_argument(
+        '-e', '--env-vars',
+        dest='env_vars_json',
+        help='JSON file containing environment variables',
+        metavar='PATH',
+    )
+    parser.add_argument(
         'SAM_TEMPLATE',
         help='Path to SAM YAML template',
     )
@@ -99,7 +105,6 @@ async def run_server(app, bind, port, path, quit_on_change=True):
             print("No reload or quit - try -w flag")
 
     await runner.cleanup()
-    return True
 
 
 def main():
@@ -111,13 +116,17 @@ def main():
 
     base_python_path = opts.base_python_path or os.path.curdir
 
+    # Load env vars
+    env_vars = load_env_vars(opts.env_vars_json)
+    os.environ.update(env_vars)
+
     # Load SAM Template
     sam = SAM(opts.SAM_TEMPLATE)
 
     # Setup handler
     routes = []
     for endpoint in sam.get_endpoints():
-        proxy = EventProxy(endpoint.Handler,os.path.join(base_python_path, endpoint.CodeUri), opts.timeout)
+        proxy = EventProxy(endpoint.Handler, os.path.join(base_python_path, endpoint.CodeUri), opts.timeout)
         handler = LambdaRequestHandler(proxy, opts.payload_version)
         print(f"Registering route {endpoint}")
         routes.append(web.RouteDef(endpoint.Method.upper(), endpoint.Path, handler.invoke, {}))
@@ -125,6 +134,8 @@ def main():
     app = web.Application()
 
     app.add_routes(routes)
+
+    print(f"Run server at {opts.bind} port {opts.port}")
 
     asyncio.run(run_server(app, opts.bind, opts.port, base_python_path, opts.watch))
 

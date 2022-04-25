@@ -4,6 +4,8 @@ Test AWS Lambda functions invoked as API Gateway proxy integrations locally.
 
 This is based on https://github.com/amancevice/python-lambda-gateway but accepts a SAM template.yaml so all lambda/gateway definitions (Python and HttpApi only for now) can be run.
 
+An env json file can be supplied to set env vars.
+
 It also runs in async and watches the Python files for changes so you can reload.
 
 After installing, navigate to the directory where your SAM template is defined and invoke it with the CLI tool using the configured handler, eg:
@@ -66,7 +68,7 @@ Start a local server with the signature of your Lambda handler as the argument.
 _Note — the handler must be importable from the CodeUri working directory (testapp)_
 
 ```bash
-lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] [-w] template.yaml
+lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] [-w] [-e .env.json] template.yaml
 lambda-gateway -p 3000 -w template.yaml
 # => Registering route Endpoint(CodeUri='testapp/', Handler='lambda_function.lambda_handler', Path='/', Method='get')
 ```
@@ -83,12 +85,26 @@ curl http://localhost:8000/?name=Pythonista
 The server will watch your Python files for changes and (if `-w` flag is set) will exit. This allows you to reload. For example:
 
 ```bash
-while sleep 1; do lambda-gateway -p 3000 --watch ./template.yaml; done
+while; do lambda-gateway -p 3000 --watch ./template.yaml; done
 ```
 
 Server reloading would be better if done within lambda-gateway to avoid this outer loop in bash, but forcing a full reload (e.g. import of Python modules) is easier this way.
 
 Provide a path to the Python code base folder using the `-B` argument. This should be to your base Python folder (which will be watched for changes), and then there may still be CodeUri values specifying a further subfolder for the function code.
+
+## Env Vars
+
+You can provide an .env.json file looking like this:
+```
+{
+  "Parameters": 
+  {
+    "Environment": "local"
+  }
+}
+```
+
+Supply on the command line using the `-e .env.json` argument. If the file contains multiple sets of env vars, e.g. one per lambda function instead of just a single 'Parameters' entry, then these will all be consolidated together and all of them provided to all functions.
 
 ## Timeouts
 
