@@ -106,7 +106,14 @@ async def run_server(app, bind, port, path, quit_on_change=True):
 
     await runner.cleanup()
 
-
+async def cors_options_handler(request):
+    r = web.Response(status=204, headers={
+            'Access-Control-Allow-Headers': 'authorization',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
+        })
+    return r
+    
 def main():
     """
     Main entrypoint.
@@ -134,6 +141,9 @@ def main():
     app = web.Application()
 
     app.add_routes(routes)
+
+    # Add a generic OPTIONS handler to encourage CORS to work
+    app.add_routes([web.RouteDef("OPTIONS", r'/{path:.*}', cors_options_handler, {})])
 
     print(f"Run server at {opts.bind} port {opts.port}")
 
