@@ -1,5 +1,6 @@
 from urllib import parse
 from aiohttp import web
+import base64
 
 class LambdaRequestHandler:
     async def get_body(self, request):
@@ -85,10 +86,14 @@ class LambdaRequestHandler:
         # Parse response
         status = res.get('statusCode') or 500
         headers = res.get('headers') or {}
-        body = res.get('body') or ''
+
+        body = res.get('body', '').encode()
+
+        if res.get('isBase64Encoded', False):
+            body = base64.b64decode(body)
 
         # Send response
-        return web.Response(status=status, body=body.encode(), headers=headers)
+        return web.Response(status=status, body=body, headers=headers)
 
     def __init__(self, proxy, version):
         """
