@@ -106,13 +106,11 @@ async def run_server(app, bind, port, path, quit_on_change=True):
 
     await runner.cleanup()
 
-async def cors_options_handler(request):
-    r = web.Response(status=204, headers={
-            'Access-Control-Allow-Headers': 'authorization',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
-        })
-    return r
+def get_cors_options_handler(extra_headers):
+    async def cors_options_handler(request):
+        r = web.Response(status=204, headers=extra_headers)
+        return r
+    return cors_options_handler
     
 def main():
     """
@@ -130,11 +128,18 @@ def main():
     # Load SAM Template
     sam = SAM(opts.SAM_TEMPLATE)
 
+    # TODO Maybe take an origin as a parameter
+    extra_headers = {
+        'Access-Control-Allow-Headers': 'authorization',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    }
+
     # Setup handler
     routes = []
     for endpoint in sam.get_endpoints():
         proxy = EventProxy(endpoint.Handler, os.path.join(base_python_path, endpoint.CodeUri), opts.timeout)
-        handler = LambdaRequestHandler(proxy, opts.payload_version)
+        handler = LambdaRequestHandler(proxy, opts.payload_version, extra_headers)
         print(f"Registering route {endpoint}")
         routes.append(web.RouteDef(endpoint.Method.upper(), endpoint.Path, handler.invoke, {}))
 
@@ -143,7 +148,7 @@ def main():
     app.add_routes(routes)
 
     # Add a generic OPTIONS handler to encourage CORS to work
-    app.add_routes([web.RouteDef("OPTIONS", r'/{path:.*}', cors_options_handler, {})])
+    app.add_routes([web.RouteDef("OPTIONS", r'/{path:.*}', get_cors_options_handler(extra_headers), {})])
 
     print(f"Run server at {opts.bind} port {opts.port}")
 

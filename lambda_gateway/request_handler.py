@@ -93,11 +93,12 @@ class LambdaRequestHandler:
             body = base64.b64decode(body)
 
         # Send response
-        return web.Response(status=status, body=body, headers=headers)
+        return web.Response(status=status, body=body, headers={**headers, **self.extra_headers})
 
-    def __init__(self, proxy, version):
+    def __init__(self, proxy, version, extra_headers={}):
         """
         Set up LambdaRequestHandler.
         """
         self.proxy = proxy
         self.version = version
+        self.extra_headers = extra_headers
