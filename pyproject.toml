@@ -1,6 +1,47 @@
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta:__legacy__"
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lambda-gateway"
+authors = [
+    {name = "Josiah Carberry", email = "josiah_carberry@brown.edu"},
+    {name = "Dan Lester", email = "dan@ideonate.com"},
+]
+description = "Simple HTTP server to invoke a Lambda function locally, using YAML"
+readme = "README.rst"
+requires-python = ">=3.8"
+keywords = ["aws", "lambda"]
+license = {text = "BSD-3-Clause"}
+classifiers = [
+        'Development Status :: 4 - Beta',
+        'Environment :: Console',
+        'Framework :: AsyncIO',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Topic :: Utilities',
+]
+dependencies = [
+    "aiohttp",
+    "nest_asyncio",
+    "ruamel.yaml",
+    "watchfiles",
+]
+dynamic = [
+    "version",
+]
+
+[project.scripts]
+lambda-gateway = "lambda_gateway.__main__:main"
+
+[tool.setuptools_scm]
+# Settings
 
 [tool.pytest.ini_options]
 minversion = "6.0"
