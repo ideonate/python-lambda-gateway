@@ -54,3 +54,46 @@ class CDKParser:
         if m:
             return m.group(1)
         return '.' 
+
+    def get_env_var_mapping(self):
+        """
+        Parse getLambdaEnv function to map env var names to props keys.
+        Returns a dict: { ENV_VAR: props_key, ... }
+        """
+        mapping = {}
+        # Find start of getLambdaEnv function
+        m = re.search(r'function\s+getLambdaEnv\([^)]*\)\s*{', self.ts_code)
+        if not m:
+            m = re.search(r'def\s+getLambdaEnv\([^)]*\)\s*{', self.ts_code)
+        if not m:
+            return mapping
+        start = m.end() - 1  # position of the opening brace
+        code = self.ts_code
+        brace_count = 0
+        body = ''
+        i = start
+        while i < len(code):
+            c = code[i]
+            if c == '{':
+                brace_count += 1
+            elif c == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    body += c
+                    break
+            body += c
+            i += 1
+        # Now parse lines for ENV_VAR: props.propsKey
+        for line in body.splitlines():
+            line = line.strip().rstrip(',')
+            m2 = re.match(r'([A-Z0-9_]+)\s*:\s*props\.([a-zA-Z0-9_]+)\s*(,|$)', line)
+            if m2:
+                env_var, props_key = m2.group(1), m2.group(2)
+                mapping[env_var] = props_key
+            else:
+                # Match lines like DDBTableName: table.tableName,
+                m3 = re.match(r'([A-Za-z0-9_]+)\s*:\s*[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\s*(,|$)', line)
+                if m3:
+                    env_var = m3.group(1)
+                    mapping[env_var] = os.environ.get(env_var, "")
+        return mapping 

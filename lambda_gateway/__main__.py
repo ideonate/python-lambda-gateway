@@ -120,11 +120,17 @@ def main():
     # Parse opts
     opts = get_opts()
 
-    base_python_path = opts.base_python_path or os.path.curdir
+    base_python_path = os.path.abspath(opts.base_python_path or os.path.curdir)
 
     # Load env vars
-    env_vars = load_env_vars(opts.env_vars_json)
-    os.environ.update(env_vars)
+    if opts.env_vars_json and opts.SAM_TEMPLATE.endswith('.ts'):
+        sam = CDKParser(opts.SAM_TEMPLATE)
+        mapping = sam.get_env_var_mapping()
+        env_vars = load_env_vars(opts.env_vars_json, mapping)
+        os.environ.update(env_vars)
+    else:
+        env_vars = load_env_vars(opts.env_vars_json)
+        os.environ.update(env_vars)
 
     # Load SAM Template or CDK Stack
     if opts.SAM_TEMPLATE.endswith('.ts'):

@@ -2,6 +2,7 @@ import json
 from collections import namedtuple
 from ruamel.yaml import YAML
 import re
+import os
 
 Endpoint = namedtuple("Endpoint", "CodeUri Handler Path Method")
 
@@ -38,7 +39,7 @@ class SAM:
                         
                         yield Endpoint(CodeUri, Handler, Path, Method)
 
-def load_env_vars(env_vars_path):
+def load_env_vars(env_vars_path, mapping=None):
     if not env_vars_path:
         return {}
 
@@ -61,8 +62,19 @@ def load_env_vars(env_vars_path):
         ts_code = re.sub(r',\s*]', ']', ts_code)
         # Now ts_code should be valid JSON
         import json
-        env_vars = json.loads(ts_code)
-        return env_vars
+        config_vars = json.loads(ts_code)
+        if mapping:
+            env_vars = {}
+            for env_var, props_key in mapping.items():
+                if props_key is None:
+                    env_vars[env_var] = os.environ.get(env_var, "")
+                elif props_key in config_vars:
+                    env_vars[env_var] = config_vars[props_key]
+                else:
+                    env_vars[env_var] = os.environ.get(env_var, "")
+            return env_vars
+        else:
+            return config_vars
     else:
         with open(env_vars_path, "rt") as f:
             env_vars_all = json.load(f)

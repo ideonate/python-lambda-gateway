@@ -24,7 +24,7 @@ class EventProxy:
         if not name:
             raise ValueError(f"Bad handler signature '{self.handler}'")
         try:
-            sys.path.append(self.base_python_path)
+            sys.path.append(os.path.abspath(self.base_python_path))
             module = importlib.import_module(name)
             importlib.reload(module)
             handler = getattr(module, func)
