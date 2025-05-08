@@ -89,7 +89,7 @@ async def run_server(app, bind, port, path, quit_on_change=True):
     """
     Run Lambda Gateway server.
     """
-    runner = web.AppRunner(app)
+    runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, bind, port)
     await site.start()
