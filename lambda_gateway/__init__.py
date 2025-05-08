@@ -1,5 +1,9 @@
 import logging
-from pkg_resources import (get_distribution, DistributionNotFound)
+
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError  # For Python <3.8
 
 
 def set_stream_logger(name, level=logging.DEBUG, format_string=None):
@@ -26,8 +30,8 @@ def _version():
     Helper to get package version.
     """
     try:
-        return get_distribution(__name__).version
-    except DistributionNotFound:  # pragma: no cover
+        return version("lambda-gateway")
+    except PackageNotFoundError:  # pragma: no cover
         return None
 
 

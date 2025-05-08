@@ -2,9 +2,9 @@
 
 Test AWS Lambda functions invoked as API Gateway proxy integrations locally.
 
-This is based on https://github.com/amancevice/python-lambda-gateway but accepts a SAM template.yaml so all lambda/gateway definitions (Python and HttpApi only for now) can be run.
+This is based on https://github.com/amancevice/python-lambda-gateway but accepts a SAM template.yaml **or a TypeScript CDK stack file** so all lambda/gateway definitions (Python and HttpApi only for now) can be run.
 
-An env json file can be supplied to set env vars.
+An env json file **or a TypeScript export default object file** can be supplied to set env vars.
 
 It also runs in async and watches the Python files for changes so you can reload.
 
@@ -24,6 +24,10 @@ pip install lambda-gateway
 ```
 
 ## Usage
+
+You can use either a SAM template.yaml **or a TypeScript CDK stack file** as input.
+
+### With a SAM template.yaml
 
 Create a Lambda function handler in Python 3 (in `testapp` subfolder)
 
@@ -46,7 +50,8 @@ def lambda_handler(event, context=None):
     }
 ```
 
-And a template.yaml for AWS SAM - this will not be fully verified:
+And a template.yaml for AWS SAM:
+
 ```yaml
 Resources:
   TestApiFunction:
@@ -63,14 +68,86 @@ Resources:
             Method: get
 ```
 
-Start a local server with the signature of your Lambda handler as the argument.
-
-_Note — the handler must be importable from the CodeUri working directory (testapp)_
+Start a local server:
 
 ```bash
 lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] [-w] [-e .env.json] template.yaml
-lambda-gateway -p 3000 -w template.yaml
-# => Registering route Endpoint(CodeUri='testapp/', Handler='lambda_function.lambda_handler', Path='/', Method='get')
+```
+
+### With a TypeScript CDK stack file
+
+Suppose you have a CDK stack file like this:
+
+```typescript
+// cdk-stack.ts
+function createLambda(
+  scope,
+  id,
+  handler,
+  props,
+  depsLayer,
+  userActivitySqsUrl
+) {
+  return new Function(scope, id, {
+    functionName: `${id}-${props.environment}`,
+    runtime: Runtime.PYTHON_3_11,
+    handler,
+    code: Code.fromAsset("../bingocards"),
+    environment: getLambdaEnv(props, userActivitySqsUrl),
+    layers: [depsLayer],
+    logRetention: RetentionDays.THREE_MONTHS,
+  });
+}
+
+const saveAnalyticsFn = createLambda(
+  this,
+  "SaveAnalytics",
+  "app.endpoints.analyticshandler",
+  props,
+  depsLayer,
+  userAnalyticsSqs.queueUrl
+);
+// ...
+```
+
+Start a local server:
+
+```bash
+lambda-gateway [-B PATH] [-b ADDR] [-p PORT] [-t SECONDS] [-w] [-e env.dev.ts] cdk-stack.ts
+```
+
+### Environment Variables
+
+You can provide environment variables as either a `.json` file or a TypeScript file exporting a default object.
+
+#### JSON example
+
+```
+{
+  "Parameters":
+  {
+    "Environment": "local"
+  }
+}
+```
+
+#### TypeScript example
+
+```
+export default {
+  supportEmail: 'dev@example.com',
+  domainNameApi: 'example.net',
+  // ...
+};
+```
+
+**Note:** The TypeScript file must export a plain object as `export default { ... }`. Only simple key-value pairs, arrays, and nested objects are supported. No functions or computed values.
+
+Supply on the command line using the `-e` argument:
+
+```bash
+lambda-gateway -e env.dev.ts cdk-stack.ts
+lambda-gateway -e .env.json template.yaml
 ```
 
 Test the function with cURL.
@@ -95,9 +172,10 @@ Provide a path to the Python code base folder using the `-B` argument. This shou
 ## Env Vars
 
 You can provide an .env.json file looking like this:
+
 ```
 {
-  "Parameters": 
+  "Parameters":
   {
     "Environment": "local"
   }
@@ -125,4 +203,3 @@ Versions `0.8+` of Lambda Gateway use `2.0` by default, but this can be changed 
 ```bash
 lambda-gateway -V1.0 lambda_function.lambda_handler
 ```
-

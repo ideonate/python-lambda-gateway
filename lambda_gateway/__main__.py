@@ -14,6 +14,7 @@ from lambda_gateway.request_handler import LambdaRequestHandler
 
 from lambda_gateway import __version__
 from lambda_gateway.sam import SAM, load_env_vars
+from lambda_gateway.cdk import CDKParser
 
 # So lambda functions can make use of asyncio without the problem
 # of being nested within our outer http loop
@@ -125,8 +126,11 @@ def main():
     env_vars = load_env_vars(opts.env_vars_json)
     os.environ.update(env_vars)
 
-    # Load SAM Template
-    sam = SAM(opts.SAM_TEMPLATE)
+    # Load SAM Template or CDK Stack
+    if opts.SAM_TEMPLATE.endswith('.ts'):
+        sam = CDKParser(opts.SAM_TEMPLATE)
+    else:
+        sam = SAM(opts.SAM_TEMPLATE)
 
     # TODO Maybe take an origin as a parameter
     extra_headers = {
